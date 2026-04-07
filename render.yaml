@@ -10,6 +10,7 @@ services:
     env: node
     region: singapore
     plan: free
+    rootDir: server
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /
