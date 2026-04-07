@@ -1,0 +1,24 @@
+[
+  {
+    "course_id": "CRS001",
+    "course_name": "高一數學",
+    "subject": "數學",
+    "class_name": "高一A班",
+    "teacher": "王老師",
+    "classroom": "101教室",
+    "day": "MONDAY",
+    "start_time": "08:00",
+    "end_time": "10:00"
+  },
+  {
+    "course_id": "CRS002",
+    "course_name": "高一英語",
+    "subject": "英語",
+    "class_name": "高一A班",
+    "teacher": "李老師",
+    "classroom": "101教室",
+    "day": "MONDAY",
+    "start_time": "10:00",
+    "end_time": "12:00"
+  }
+]

@@ -1,0 +1,21 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SmartScheduler 測試</title>
+    <script src="app.js"></script>
+</head>
+<body>
+    <h1>測試 JavaScript 加載</h1>
+    <script>
+        try {
+            console.log('AppState:', typeof AppState !== 'undefined' ? '✅ 已定義' : '❌ 未定義');
+            console.log('DEPARTMENTS:', typeof DEPARTMENTS !== 'undefined' ? '✅ 已定義' : '❌ 未定義');
+            console.log('DIVISIONS:', typeof DIVISIONS !== 'undefined' ? '✅ 已定義' : '❌ 未定義');
+            document.body.innerHTML += '<p style="color:green;">✅ JavaScript 加載成功！</p>';
+        } catch (e) {
+            document.body.innerHTML += '<p style="color:red;">❌ 錯誤: ' + e.message + '</p>';
+        }
+    </script>
+</body>
+</html>

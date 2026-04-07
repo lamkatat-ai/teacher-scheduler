@@ -1,0 +1,139 @@
+{
+  "teachers": [
+    {
+      "id": "T001",
+      "name": "王老師",
+      "subjects": ["數學", "物理"],
+      "available_slots": [
+        {"day": "MONDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "TUESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "WEDNESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "THURSDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "FRIDAY", "start_time": "08:00", "end_time": "10:00"}
+      ],
+      "max_hours_per_week": 20
+    },
+    {
+      "id": "T002",
+      "name": "李老師",
+      "subjects": ["英語", "語文"],
+      "available_slots": [
+        {"day": "MONDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "TUESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "WEDNESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "THURSDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "FRIDAY", "start_time": "10:00", "end_time": "12:00"}
+      ],
+      "max_hours_per_week": 18
+    },
+    {
+      "id": "T003",
+      "name": "張老師",
+      "subjects": ["化學", "生物"],
+      "available_slots": [
+        {"day": "MONDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "TUESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "WEDNESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "THURSDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "FRIDAY", "start_time": "14:00", "end_time": "16:00"}
+      ],
+      "max_hours_per_week": 16
+    }
+  ],
+  "classrooms": [
+    {
+      "id": "C001",
+      "name": "101教室",
+      "capacity": 40,
+      "available_slots": [
+        {"day": "MONDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "MONDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "MONDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "TUESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "TUESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "TUESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "WEDNESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "WEDNESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "WEDNESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "THURSDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "THURSDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "THURSDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "FRIDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "FRIDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "FRIDAY", "start_time": "14:00", "end_time": "16:00"}
+      ]
+    },
+    {
+      "id": "C002",
+      "name": "102教室",
+      "capacity": 35,
+      "available_slots": [
+        {"day": "MONDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "MONDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "MONDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "TUESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "TUESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "TUESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "WEDNESDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "WEDNESDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "WEDNESDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "THURSDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "THURSDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "THURSDAY", "start_time": "14:00", "end_time": "16:00"},
+        {"day": "FRIDAY", "start_time": "08:00", "end_time": "10:00"},
+        {"day": "FRIDAY", "start_time": "10:00", "end_time": "12:00"},
+        {"day": "FRIDAY", "start_time": "14:00", "end_time": "16:00"}
+      ]
+    }
+  ],
+  "courses": [
+    {
+      "id": "CRS001",
+      "name": "高一數學",
+      "subject": "數學",
+      "class_name": "高一A班",
+      "hours_per_week": 2,
+      "student_count": 35
+    },
+    {
+      "id": "CRS002",
+      "name": "高一英語",
+      "subject": "英語",
+      "class_name": "高一A班",
+      "hours_per_week": 2,
+      "student_count": 35
+    },
+    {
+      "id": "CRS003",
+      "name": "高一物理",
+      "subject": "物理",
+      "class_name": "高一A班",
+      "hours_per_week": 2,
+      "student_count": 35
+    },
+    {
+      "id": "CRS004",
+      "name": "高一化學",
+      "subject": "化學",
+      "class_name": "高一A班",
+      "hours_per_week": 2,
+      "student_count": 35
+    },
+    {
+      "id": "CRS005",
+      "name": "高二數學",
+      "subject": "數學",
+      "class_name": "高二B班",
+      "hours_per_week": 2,
+      "student_count": 32
+    },
+    {
+      "id": "CRS006",
+      "name": "高二英語",
+      "subject": "英語",
+      "class_name": "高二B班",
+      "hours_per_week": 2,
+      "student_count": 32
+    }
+  ]
+}

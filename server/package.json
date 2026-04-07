@@ -1,0 +1,24 @@
+{
+  "name": "teacher-scheduler-server",
+  "version": "1.0.0",
+  "description": "智能排課系統後端服務器",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.8.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  },
+  "keywords": [
+    "scheduler",
+    "teacher",
+    "school"
+  ],
+  "author": "OpenClaw",
+  "license": "MIT"
+}

@@ -1,0 +1,20 @@
+database:
+  - name: teacher-scheduler-db
+    databaseName: teacher_scheduler
+    user: render_user
+    plan: free
+
+services:
+  - type: web
+    name: teacher-scheduler
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000

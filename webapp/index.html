@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartScheduler 智能排課系統</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-calendar-alt"></i>
+                <span>SmartScheduler</span>
+            </div>
+            <div class="subtitle">智能排課系統</div>
+        </div>
+        <div class="header-right">
+            <button class="btn btn-outline" id="exportCSVBtn" title="導出 CSV">
+                <i class="fas fa-file-csv"></i> CSV
+            </button>
+            <button class="btn btn-outline" id="printBtn" title="打印">
+                <i class="fas fa-print"></i> 列印
+            </button>
+            <button class="btn btn-danger" id="clearDataBtn" title="清除所有數據">
+                <i class="fas fa-trash"></i> 清除數據
+            </button>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+        <button class="tab-btn active" data-tab="dashboard">
+            <i class="fas fa-chart-line"></i> 概覽
+        </button>
+        <button class="tab-btn" data-tab="teachers">
+            <i class="fas fa-chalkboard-teacher"></i> 教師管理
+        </button>
+        <button class="tab-btn" data-tab="classes">
+            <i class="fas fa-users"></i> 班級管理
+        </button>
+        <button class="tab-btn" data-tab="subjects">
+            <i class="fas fa-book-open"></i> 科目設置
+        </button>
+        <button class="tab-btn" data-tab="meetings">
+            <i class="fas fa-calendar-alt"></i> 會議設置
+        </button>
+        <button class="tab-btn" data-tab="schedule">
+            <i class="fas fa-calendar-week"></i> 排課引擎
+        </button>
+        <button class="tab-btn" data-tab="early-departures">
+            <i class="fas fa-door-open"></i> 早退記錄
+        </button>
+        <button class="tab-btn" data-tab="leave-requests">
+            <i class="fas fa-calendar-minus"></i> 請假申請
+        </button>
+        <button class="tab-btn" data-tab="view">
+            <i class="fas fa-table"></i> 課表查看
+        </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Tab -->
+        <section class="tab-content active" id="dashboard">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue"><i class="fas fa-chalkboard-teacher"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTeachers">0</div>
+                        <div class="stat-label">教師數量</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i class="fas fa-users"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statClasses">0</div>
+                        <div class="stat-label">班級數量</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon purple"><i class="fas fa-book-open"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statSubjects">0</div>
+                        <div class="stat-label">科目數量</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statPeriods">0</div>
+                        <div class="stat-label">每天節數</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-school"></i> 學部分佈</h3>
+                    </div>
+                    <div class="card-body" id="divisionStats"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-users-cog"></i> 科組分佈</h3>
+                    </div>
+                    <div class="card-body" id="departmentStats"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-bell"></i> 系統提示</h3>
+                    </div>
+                    <div class="card-body" id="systemTips"></div>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <h3><i class="fas fa-bolt"></i> 快速操作</h3>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="switchTab('teachers')">
+                        <i class="fas fa-user-plus"></i>
+                        <span>添加教師</span>
+                    </button>
+                    <button class="action-btn" onclick="switchTab('classes')">
+                        <i class="fas fa-user-friends"></i>
+                        <span>添加班級</span>
+                    </button>
+                    <button class="action-btn" onclick="switchTab('subjects')">
+                        <i class="fas fa-book"></i>
+                        <span>設置科目</span>
+                    </button>
+                    <button class="action-btn primary" onclick="switchTab('schedule')">
+                        <i class="fas fa-magic"></i>
+                        <span>一鍵排課</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Teachers Tab -->
+        <section class="tab-content" id="teachers">
+            <div class="section-header">
+                <h2><i class="fas fa-chalkboard-teacher"></i> 教師管理</h2>
+                <button class="btn btn-primary" id="addTeacherBtn">
+                    <i class="fas fa-plus"></i> 新增教師
+                </button>
+            </div>
+
+            <div class="search-filter-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="teacherSearch" placeholder="搜尋教師姓名或科目...">
+                </div>
+                <div class="filter-group">
+                    <select id="teacherDepartmentFilter">
+                        <option value="">所有科組</option>
+                        <option value="english">英文科組</option>
+                        <option value="chinese">中文科組</option>
+                        <option value="math">數學科組</option>
+                        <option value="history-geo">史地科組</option>
+                        <option value="religion-civic">宗教與公民科組</option>
+                        <option value="pe">體育科組</option>
+                        <option value="art-music">視藝及音樂科組</option>
+                        <option value="cultivation">培育組</option>
+                        <option value="student-dev">學生發展及升學組</option>
+                        <option value="image">形象組</option>
+                        <option value="curriculum">課程組</option>
+                        <option value="admin">行政組</option>
+                        <option value="secondary-core">中學核心組</option>
+                        <option value="secondary-admin-head">中學行政及科組長</option>
+                    </select>
+                    <select id="teacherDivisionFilter">
+                        <option value="">所有學部</option>
+                        <option value="kindergarten">幼稚園</option>
+                        <option value="primary-cn">小學中文部</option>
+                        <option value="primary-en">小學英文部</option>
+                        <option value="secondary-cn">中學中文部</option>
+                        <option value="secondary-en">中學英文部</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table" id="teachersTable">
+                    <thead>
+                        <tr>
+                            <th>姓名</th>
+                            <th>科組</th>
+                            <th>任教科目</th>
+                            <th>所屬學部</th>
+                            <th>可用時間</th>
+                            <th>特殊條件</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teachersTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Classes Tab -->
+        <section class="tab-content" id="classes">
+            <div class="section-header">
+                <h2><i class="fas fa-users"></i> 班級管理</h2>
+                <button class="btn btn-primary" id="addClassBtn">
+                    <i class="fas fa-plus"></i> 新增班級
+                </button>
+            </div>
+
+            <div class="search-filter-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="classSearch" placeholder="搜尋班級名稱...">
+                </div>
+                <div class="filter-group">
+                    <select id="classDivisionFilter">
+                        <option value="">所有學部</option>
+                        <option value="kindergarten">幼稚園</option>
+                        <option value="primary-cn">小學中文部</option>
+                        <option value="primary-en">小學英文部</option>
+                        <option value="secondary-cn">中學中文部</option>
+                        <option value="secondary-en">中學英文部</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="data-table" id="classesTable">
+                    <thead>
+                        <tr>
+                            <th>班級名稱</th>
+                            <th>學部</th>
+                            <th>年級</th>
+                            <th>科目需求</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="classesTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Subjects Tab -->
+        <section class="tab-content" id="subjects">
+            <div class="section-header">
+                <h2><i class="fas fa-book-open"></i> 科目設置</h2>
+                <button class="btn btn-primary" id="addSubjectBtn">
+                    <i class="fas fa-plus"></i> 新增科目
+                </button>
+            </div>
+
+            <div class="subject-grid" id="subjectGrid"></div>
+        </section>
+
+        <!-- Meetings Tab -->
+        <section class="tab-content" id="meetings">
+            <div class="section-header">
+                <h2><i class="fas fa-calendar-alt"></i> 科組會議設置</h2>
+                <button class="btn btn-primary" id="saveMeetingsBtn">
+                    <i class="fas fa-save"></i> 儲存會議時間
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-info-circle"></i> 說明</h3>
+                </div>
+                <div class="card-body">
+                    <p>設置每個科組的會議時間。當教師被加入科組後，會議將自動顯示在其課表中。</p>
+                    <p style="color:#e74c3c;margin-top:0.5rem;"><i class="fas fa-exclamation-triangle"></i> 注意：會議時間將被保留，不會被排入其他課程。</p>
+                </div>
+            </div>
+
+            <div class="meetings-grid" id="meetingsGrid" style="margin-top:1.5rem;"></div>
+        </section>
+
+        <!-- Schedule Tab -->
+        <section class="tab-content" id="schedule">
+            <div class="section-header">
+                <h2><i class="fas fa-magic"></i> 自動排課引擎</h2>
+                <div class="schedule-actions">
+                    <button class="btn btn-secondary" id="detectConflictsBtn">
+                        <i class="fas fa-exclamation-triangle"></i> 檢測衝突
+                    </button>
+                    <button class="btn btn-primary" id="generateScheduleBtn">
+                        <i class="fas fa-calendar-check"></i> 一鍵排課
+                    </button>
+                </div>
+            </div>
+
+            <div class="schedule-settings card">
+                <div class="card-header">
+                    <h3><i class="fas fa-cog"></i> 排課設置</h3>
+                </div>
+                <div class="card-body">
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label>每天節數</label>
+                            <select id="periodsPerDay">
+                                <option value="6">6 節</option>
+                                <option value="7">7 節</option>
+                                <option value="8">8 節</option>
+                                <option value="9" selected>9 節</option>
+                                <option value="10">10 節</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>上課天數</label>
+                            <select id="daysPerWeek">
+                                <option value="5" selected>5 天（週一至週五）</option>
+                                <option value="6">6 天</option>
+                                <option value="7">7 天</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>排課優先策略</label>
+                            <select id="priorityStrategy">
+                                <option value="balance">平衡分配</option>
+                                <option value="morning">優先上午</option>
+                                <option value="afternoon">優先下午</option>
+                                <option value="spread">均勻分佈</option>
+                            </select>
+                        </div>
+                        <div class="setting-item">
+                            <label>最大嘗試次數</label>
+                            <select id="maxAttempts">
+                                <option value="100">100 次</option>
+                                <option value="500" selected>500 次</option>
+                                <option value="1000">1000 次</option>
+                                <option value="2000">2000 次</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="schedule-progress card" id="scheduleProgress" style="display:none;">
+                <div class="card-body">
+                    <div class="progress-info">
+                        <span id="progressText">正在排課...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="schedule-result card" id="scheduleResult" style="display:none;">
+                <div class="card-header">
+                    <h3><i class="fas fa-check-circle"></i> 排課結果</h3>
+                </div>
+                <div class="card-body" id="scheduleResultBody"></div>
+            </div>
+
+            <div class="conflicts-result card" id="conflictsResult" style="display:none;">
+                <div class="card-header">
+                    <h3><i class="fas fa-exclamation-triangle"></i> 衝突檢測結果</h3>
+                </div>
+                <div class="card-body" id="conflictsResultBody"></div>
+            </div>
+        </section>
+
+        <!-- Early Departures Tab -->
+        <section class="tab-content" id="early-departures">
+            <div class="section-header">
+                <h2><i class="fas fa-door-open"></i> 早退記錄</h2>
+                <button class="btn btn-primary" id="addEarlyDepartureBtn">
+                    <i class="fas fa-plus"></i> 新增早退申請
+                </button>
+            </div>
+
+            <!-- 統計卡片 -->
+            <div class="stats-grid" style="margin-bottom:1.5rem;">
+                <div class="stat-card">
+                    <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statPending">0</div>
+                        <div class="stat-label">待審批</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statApproved">0</div>
+                        <div class="stat-label">已批准</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statRejected">0</div>
+                        <div class="stat-label">已拒絕</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon blue"><i class="fas fa-list"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="statTotalDepartures">0</div>
+                        <div class="stat-label">總記錄數</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 篩選器 -->
+            <div class="card" style="margin-bottom:1rem;">
+                <div class="card-body">
+                    <div style="display:flex;gap:1rem;align-items:end;flex-wrap:wrap;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>狀態</label>
+                            <select id="earlyDepartureStatusFilter">
+                                <option value="">全部</option>
+                                <option value="pending">待審批</option>
+                                <option value="approved">已批准</option>
+                                <option value="rejected">已拒絕</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>教師</label>
+                            <select id="earlyDepartureTeacherFilter">
+                                <option value="">所有教師</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>開始日期</label>
+                            <input type="date" id="earlyDepartureStartDate">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>結束日期</label>
+                            <input type="date" id="earlyDepartureEndDate">
+                        </div>
+                        <button class="btn btn-secondary" onclick="filterEarlyDepartures()">
+                            <i class="fas fa-search"></i> 查詢
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 記錄列表 -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>早退記錄列表</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>教師姓名</th>
+                                    <th>學部</th>
+                                    <th>早退日期</th>
+                                    <th>離開時間</th>
+                                    <th>早退原因</th>
+                                    <th>詳細說明</th>
+                                    <th>狀態</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="earlyDeparturesTableBody">
+                                <tr>
+                                    <td colspan="8" class="empty-table-text">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>暫無早退記錄</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- View Tab -->
+        <section class="tab-content" id="view">
+            <div class="section-header">
+                <h2><i class="fas fa-table"></i> 課表查看</h2>
+                <div class="view-controls">
+                    <div class="view-type-toggle">
+                        <button class="toggle-btn active" data-view="class">按班級</button>
+                        <button class="toggle-btn" data-view="teacher">按教師</button>
+                        <button class="toggle-btn" data-view="division">按學部</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="view-filters card">
+                <div class="card-body">
+                    <div class="filter-row" id="classFilterRow">
+                        <div class="filter-item">
+                            <label>選擇學部</label>
+                            <select id="viewDivisionFilter">
+                                <option value="">所有學部</option>
+                                <option value="kindergarten">幼稚園</option>
+                                <option value="primary-cn">小學中文部</option>
+                                <option value="primary-en">小學英文部</option>
+                                <option value="secondary-cn">中學中文部</option>
+                                <option value="secondary-en">中學英文部</option>
+                            </select>
+                        </div>
+                        <div class="filter-item">
+                            <label>選擇班級</label>
+                            <select id="viewClassFilter">
+                                <option value="">所有班級</option>
+                            </select>
+                        </div>
+                        <div class="filter-item" id="teacherFilterRow" style="display:none;">
+                            <label>選擇教師</label>
+                            <select id="viewTeacherFilter">
+                                <option value="">所有教師</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="schedule-display" id="scheduleDisplay">
+                <div class="empty-state">
+                    <i class="fas fa-calendar-times"></i>
+                    <h3>暫無課表</h3>
+                    <p>請先在「排課引擎」中生成課表</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <!-- Teacher Modal -->
+    <div class="modal" id="teacherModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="teacherModalTitle"><i class="fas fa-user-plus"></i> 新增教師</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="teacherForm">
+                    <input type="hidden" id="teacherId">
+                    <div class="form-group">
+                        <label>教師姓名 <span class="required">*</span></label>
+                        <input type="text" id="teacherName" required placeholder="例如：陳小明">
+                    </div>
+                    <div class="form-group">
+                        <label>所屬科組（可多選）</label>
+                        <div class="subject-checkboxes" id="teacherDepartments" style="max-height:200px;overflow-y:auto;border:1px solid var(--gray-300);border-radius:var(--radius-sm);padding:0.5rem;"></div>
+                        <small class="form-hint">勾選的科組會議將自動顯示在課表中</small>
+                    </div>
+                    <div class="form-group" id="customMeetingsGroup" style="display:none;">
+                        <label>自定義會議（可多選）</label>
+                        <div class="subject-checkboxes" id="teacherCustomMeetings" style="max-height:150px;overflow-y:auto;border:1px solid var(--gray-300);border-radius:var(--radius-sm);padding:0.5rem;"></div>
+                        <small class="form-hint">勾選的會議將顯示在您的課表中</small>
+                    </div>
+                    <div class="form-group">
+                        <label>任教科目 <span class="required">*</span></label>
+                        <div class="subject-checkboxes" id="teacherSubjects"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>所屬學部 <span class="required">*</span></label>
+                        <select id="teacherDivision" required>
+                            <option value="">請選擇學部</option>
+                            <option value="kindergarten">幼稚園</option>
+                            <option value="primary-cn">小學中文部</option>
+                            <option value="primary-en">小學英文部</option>
+                            <option value="secondary-cn">中學中文部</option>
+                            <option value="secondary-en">中學英文部</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>可用時間</label>
+                        <div class="time-grid" id="teacherTimeGrid"></div>
+                        <small class="form-hint">點擊格子切換可用/不可用狀態</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="isHomeroomTeacher" style="width:auto;margin-right:0.5rem;">
+                            是否為班主任
+                        </label>
+                    </div>
+                    <div class="form-group" id="homeroomClassGroup" style="display:none;">
+                        <label>擔任班主任的班級</label>
+                        <select id="homeroomClass">
+                            <option value="">請選擇班級</option>
+                        </select>
+                        <small class="form-hint">班主任課將自動排入每週五第二節</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="primaryLeisure" style="width:auto;margin-right:0.5rem;">
+                            參加小學餘暇活動
+                        </label>
+                        <small class="form-hint" style="display:block;margin-top:0.25rem;">週五第8-9節將保留為餘暇活動時間</small>
+                    </div>
+                    <div class="form-group">
+                        <label>特殊條件</label>
+                        <textarea id="teacherConstraints" rows="3" placeholder="例如：早上第1-5節不能排課"></textarea>
+                        <small class="form-hint">支援條件：早上第1-5節不能排課、下午不能排課、單數節不能排課等</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-primary" id="saveTeacherBtn">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Modal -->
+    <div class="modal" id="classModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="classModalTitle"><i class="fas fa-user-friends"></i> 新增班級</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="classForm">
+                    <input type="hidden" id="classId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>學部 <span class="required">*</span></label>
+                            <select id="classDivision" required>
+                                <option value="">請選擇學部</option>
+                                <option value="kindergarten">幼稚園</option>
+                                <option value="primary-cn">小學中文部</option>
+                                <option value="primary-en">小學英文部</option>
+                                <option value="secondary-cn">中學中文部</option>
+                                <option value="secondary-en">中學英文部</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>年級 <span class="required">*</span></label>
+                            <select id="classGrade" required>
+                                <option value="">請選擇年級</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>班級名稱 <span class="required">*</span></label>
+                        <input type="text" id="className" required placeholder="例如：1A">
+                    </div>
+                    <div class="form-group">
+                        <label>科目需求</label>
+                        <div class="subject-checkboxes" id="classSubjects"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-primary" id="saveClassBtn">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subject Modal -->
+    <div class="modal" id="subjectModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="subjectModalTitle"><i class="fas fa-book"></i> 新增科目</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="subjectForm">
+                    <input type="hidden" id="subjectId">
+                    <div class="form-group">
+                        <label>科目名稱 <span class="required">*</span></label>
+                        <input type="text" id="subjectName" required placeholder="例如：中文、英文、數學">
+                    </div>
+                    <div class="form-group">
+                        <label>科目代碼</label>
+                        <input type="text" id="subjectCode" placeholder="例如：CH、EN、MATH">
+                    </div>
+                    <div class="form-group">
+                        <label>顏色標記</label>
+                        <div class="color-picker" id="subjectColorPicker">
+                            <span class="color-option" data-color="#3498db" style="background:#3498db"></span>
+                            <span class="color-option" data-color="#e74c3c" style="background:#e74c3c"></span>
+                            <span class="color-option" data-color="#2ecc71" style="background:#2ecc71"></span>
+                            <span class="color-option" data-color="#f39c12" style="background:#f39c12"></span>
+                            <span class="color-option" data-color="#9b59b6" style="background:#9b59b6"></span>
+                            <span class="color-option" data-color="#1abc9c" style="background:#1abc9c"></span>
+                            <span class="color-option" data-color="#e67e22" style="background:#e67e22"></span>
+                            <span class="color-option" data-color="#34495e" style="background:#34495e"></span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-primary" id="saveSubjectBtn">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Requirements Modal -->
+    <div class="modal" id="classRequirementsModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-tasks"></i> 班級科目需求設置</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="class-info-bar" id="classInfoBar"></div>
+                <div class="requirements-list" id="requirementsList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-primary" id="saveRequirementsBtn">
+                    <i class="fas fa-save"></i> 儲存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Early Departure Modal -->
+    <div class="modal" id="earlyDepartureModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="earlyDepartureModalTitle"><i class="fas fa-door-open"></i> 新增早退申請</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="earlyDepartureForm">
+                    <input type="hidden" id="earlyDepartureId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>教師姓名 <span class="required">*</span></label>
+                            <select id="departureTeacherName" required>
+                                <option value="">請選擇教師</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>所屬學部 <span class="required">*</span></label>
+                            <select id="departureDepartment" required>
+                                <option value="">請選擇學部</option>
+                                <option value="幼稚園">幼稚園</option>
+                                <option value="小學中文部">小學中文部</option>
+                                <option value="小學英文部">小學英文部</option>
+                                <option value="中學中文部">中學中文部</option>
+                                <option value="中學英文部">中學英文部</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>早退日期 <span class="required">*</span></label>
+                            <input type="date" id="departureDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>離開時間 <span class="required">*</span></label>
+                            <select id="departureTime" required>
+                                <option value="">請選擇</option>
+                                <option value="第1節後">第1節後</option>
+                                <option value="第2節後">第2節後</option>
+                                <option value="第3節後">第3節後</option>
+                                <option value="第4節後">第4節後</option>
+                                <option value="第5節後">第5節後</option>
+                                <option value="第6節後">第6節後</option>
+                                <option value="第7節後">第7節後</option>
+                                <option value="第8節後">第8節後</option>
+                                <option value="第9節後">第9節後</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>早退原因 <span class="required">*</span></label>
+                        <select id="departureReasonType" required>
+                            <option value="">請選擇</option>
+                            <option value="事務堂">事務堂</option>
+                            <option value="外出比賽">外出比賽</option>
+                            <option value="教務會議">教務會議</option>
+                            <option value="家校會議">家校會議</option>
+                            <option value="教師培訓">教師培訓</option>
+                            <option value="身體不適">身體不適</option>
+                            <option value="家庭事務">家庭事務</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>詳細說明</label>
+                        <textarea id="departureReasonDetail" rows="3" placeholder="請詳細說明早退原因..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-primary" id="saveEarlyDepartureBtn">
+                    <i class="fas fa-save"></i> 提交申請
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approval Modal -->
+    <div class="modal" id="approvalModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-clipboard-check"></i> 審批早退申請</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="approvalDetails"></div>
+                <hr style="margin:1.5rem 0;">
+                <div class="form-group">
+                    <label>審批意見</label>
+                    <textarea id="approvalComment" rows="3" placeholder="請輸入審批意見（選填）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary modal-cancel">取消</button>
+                <button class="btn btn-success" id="approveBtn" onclick="approveEarlyDeparture()">
+                    <i class="fas fa-check"></i> 批准
+                </button>
+                <button class="btn btn-danger" id="rejectBtn" onclick="rejectEarlyDeparture()">
+                    <i class="fas fa-times"></i> 拒絕
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
