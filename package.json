@@ -1,0 +1,12 @@
+{
+  "name": "teacher-scheduler",
+  "version": "1.0.0",
+  "description": "智能排課系統",
+  "scripts": {
+    "start": "cd server && npm start",
+    "build": "cd server && npm install"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
