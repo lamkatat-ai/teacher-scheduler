@@ -1,12 +1,12 @@
 /**
- * 智能排課系統 - 後端服務器
+ * 智能排課系統 - 後端服務器 (PostgreSQL 版本)
  * 支持多用戶協作、早退記錄、審批流程
  */
 
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const WebSocket = require('ws');
 const path = require('path');
 const http = require('http');
@@ -23,116 +23,88 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // 靜態文件
 app.use(express.static(path.join(__dirname, '../webapp')));
 
+// PostgreSQL 連接池
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/teacher_scheduler',
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
 // 數據庫初始化
-const db = new Database(path.join(__dirname, 'scheduler.db'));
-
-// 數據庫遷移：處理舊的 username 欄位遷移到 email
-function migrateDatabase() {
+async function initDatabase() {
+    const client = await pool.connect();
     try {
-        // 檢查 users 表結構
-        const tableInfo = db.prepare("PRAGMA table_info(users)").all();
-        const hasUsername = tableInfo.some(col => col.name === 'username');
-        const hasEmail = tableInfo.some(col => col.name === 'email');
-        
-        if (hasUsername && !hasEmail) {
-            console.log('🔄 正在進行數據庫遷移：username -> email...');
-            
-            // 創建新表
-            db.exec(`
-                CREATE TABLE users_new (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL,
-                    name TEXT NOT NULL,
-                    role TEXT NOT NULL DEFAULT 'teacher',
-                    department TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                );
-            `);
-            
-            // 遷移數據
-            db.prepare(`
-                INSERT INTO users_new (id, email, password, name, role, department, created_at)
-                SELECT id, username, password, name, role, department, created_at FROM users
-            `).run();
-            
-            // 刪除舊表
-            db.prepare("DROP TABLE users").run();
-            
-            // 重命名新表
-            db.prepare("ALTER TABLE users_new RENAME TO users").run();
-            
-            console.log('✅ 數據庫遷移完成');
+        // 創建表
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                name TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'teacher',
+                department TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS early_departures (
+                id SERIAL PRIMARY KEY,
+                teacher_id INTEGER NOT NULL,
+                teacher_name TEXT NOT NULL,
+                department TEXT,
+                date TEXT NOT NULL,
+                time TEXT NOT NULL,
+                reason_type TEXT NOT NULL,
+                reason_detail TEXT,
+                status TEXT DEFAULT 'pending',
+                approved_by INTEGER,
+                approved_at TIMESTAMP,
+                approval_comment TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS schedules (
+                id SERIAL PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_by INTEGER
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teachers (
+                id SERIAL PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS classes (
+                id SERIAL PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // 插入默認管理員賬號
+        const adminResult = await client.query('SELECT id FROM users WHERE email = $1', ['admin@school.edu.hk']);
+        if (adminResult.rows.length === 0) {
+            await client.query(
+                'INSERT INTO users (email, password, name, role, department) VALUES ($1, $2, $3, $4, $5)',
+                ['admin@school.edu.hk', 'admin123', '系統管理員', 'admin', '系統']
+            );
+            console.log('✅ 默認管理員賬號已創建 (admin@school.edu.hk / admin123)');
         }
+
+        console.log('✅ 數據庫初始化完成');
     } catch (error) {
-        console.log('ℹ️ 數據庫遷移檢查：', error.message);
+        console.error('❌ 數據庫初始化錯誤:', error);
+    } finally {
+        client.release();
     }
-}
-
-// 創建表
-db.exec(`
-    -- 用戶表
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'teacher',
-        department TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- 早退記錄表
-    CREATE TABLE IF NOT EXISTS early_departures (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        teacher_id INTEGER NOT NULL,
-        teacher_name TEXT NOT NULL,
-        department TEXT,
-        date TEXT NOT NULL,
-        time TEXT NOT NULL,
-        reason_type TEXT NOT NULL,
-        reason_detail TEXT,
-        status TEXT DEFAULT 'pending',
-        approved_by INTEGER,
-        approved_at DATETIME,
-        approval_comment TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (teacher_id) REFERENCES users(id)
-    );
-
-    -- 排課數據表
-    CREATE TABLE IF NOT EXISTS schedules (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_by INTEGER
-    );
-
-    -- 教師數據表
-    CREATE TABLE IF NOT EXISTS teachers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    -- 班級數據表
-    CREATE TABLE IF NOT EXISTS classes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        data TEXT NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-`);
-
-// 執行數據庫遷移
-migrateDatabase();
-
-// 插入默認管理員賬號
-const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@school.edu.hk');
-if (!adminExists) {
-    db.prepare('INSERT INTO users (email, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
-        'admin@school.edu.hk', 'admin123', '系統管理員', 'admin', '系統'
-    );
-    console.log('✅ 默認管理員賬號已創建 (admin@school.edu.hk / admin123)');
 }
 
 // ========================================
@@ -140,34 +112,49 @@ if (!adminExists) {
 // ========================================
 
 // 用戶登錄
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     
-    const user = db.prepare('SELECT id, email, name, role, department FROM users WHERE email = ? AND password = ?').get(email, password);
-    
-    if (user) {
-        res.json({ success: true, user: user });
-    } else {
-        res.json({ success: false, message: '電郵或密碼錯誤' });
+    try {
+        const result = await pool.query(
+            'SELECT id, email, name, role, department FROM users WHERE email = $1 AND password = $2',
+            [email, password]
+        );
+        
+        if (result.rows.length > 0) {
+            res.json({ success: true, user: result.rows[0] });
+        } else {
+            res.json({ success: false, message: '電郵或密碼錯誤' });
+        }
+    } catch (error) {
+        console.error('登錄錯誤:', error);
+        res.json({ success: false, message: '系統錯誤' });
     }
 });
 
 // 獲取所有用戶
-app.get('/api/users', (req, res) => {
-    const users = db.prepare('SELECT id, email, name, role, department FROM users').all();
-    res.json(users);
+app.get('/api/users', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, email, name, role, department FROM users');
+        res.json(result.rows);
+    } catch (error) {
+        console.error('獲取用戶錯誤:', error);
+        res.json([]);
+    }
 });
 
 // 新增用戶
-app.post('/api/users', (req, res) => {
+app.post('/api/users', async (req, res) => {
     const { email, password, name, role, department } = req.body;
     
     try {
-        const result = db.prepare('INSERT INTO users (email, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
-            email, password, name, role, department
+        const result = await pool.query(
+            'INSERT INTO users (email, password, name, role, department) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [email, password, name, role, department]
         );
-        res.json({ success: true, id: result.lastInsertRowid });
+        res.json({ success: true, id: result.rows[0].id });
     } catch (error) {
+        console.error('新增用戶錯誤:', error);
         res.json({ success: false, message: '電郵已存在' });
     }
 });
@@ -177,98 +164,132 @@ app.post('/api/users', (req, res) => {
 // ========================================
 
 // 獲取早退記錄列表
-app.get('/api/early-departures', (req, res) => {
+app.get('/api/early-departures', async (req, res) => {
     const { status, teacher_id } = req.query;
     
     let sql = 'SELECT * FROM early_departures WHERE 1=1';
     const params = [];
+    let paramIndex = 1;
     
     if (status) {
-        sql += ' AND status = ?';
+        sql += ` AND status = $${paramIndex}`;
         params.push(status);
+        paramIndex++;
     }
     
     if (teacher_id) {
-        sql += ' AND teacher_id = ?';
+        sql += ` AND teacher_id = $${paramIndex}`;
         params.push(teacher_id);
+        paramIndex++;
     }
     
     sql += ' ORDER BY created_at DESC';
     
-    const records = db.prepare(sql).all(...params);
-    res.json(records);
+    try {
+        const result = await pool.query(sql, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('獲取早退記錄錯誤:', error);
+        res.json([]);
+    }
 });
 
 // 新增早退記錄
-app.post('/api/early-departures', (req, res) => {
+app.post('/api/early-departures', async (req, res) => {
     const { teacher_id, teacher_name, department, date, time, reason_type, reason_detail } = req.body;
     
-    const result = db.prepare(`
-        INSERT INTO early_departures (teacher_id, teacher_name, department, date, time, reason_type, reason_detail)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(teacher_id, teacher_name, department, date, time, reason_type, reason_detail);
-    
-    // 通知所有客戶端
-    broadcast({ type: 'early_departure_created', data: { id: result.lastInsertRowid } });
-    
-    res.json({ success: true, id: result.lastInsertRowid });
+    try {
+        const result = await pool.query(
+            `INSERT INTO early_departures (teacher_id, teacher_name, department, date, time, reason_type, reason_detail)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+            [teacher_id, teacher_name, department, date, time, reason_type, reason_detail]
+        );
+        
+        // 通知所有客戶端
+        broadcast({ type: 'early_departure_created', data: { id: result.rows[0].id } });
+        
+        res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+        console.error('新增早退記錄錯誤:', error);
+        res.json({ success: false, message: '系統錯誤' });
+    }
 });
 
 // 更新早退記錄（審批）
-app.put('/api/early-departures/:id', (req, res) => {
+app.put('/api/early-departures/:id', async (req, res) => {
     const { id } = req.params;
     const { status, approved_by, approval_comment } = req.body;
     
-    db.prepare(`
-        UPDATE early_departures 
-        SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, approval_comment = ?
-        WHERE id = ?
-    `).run(status, approved_by, approval_comment, id);
-    
-    // 通知所有客戶端
-    broadcast({ type: 'early_departure_updated', data: { id: id } });
-    
-    res.json({ success: true });
+    try {
+        await pool.query(
+            `UPDATE early_departures 
+             SET status = $1, approved_by = $2, approved_at = CURRENT_TIMESTAMP, approval_comment = $3
+             WHERE id = $4`,
+            [status, approved_by, approval_comment, id]
+        );
+        
+        // 通知所有客戶端
+        broadcast({ type: 'early_departure_updated', data: { id: id } });
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('更新早退記錄錯誤:', error);
+        res.json({ success: false, message: '系統錯誤' });
+    }
 });
 
 // 刪除早退記錄
-app.delete('/api/early-departures/:id', (req, res) => {
+app.delete('/api/early-departures/:id', async (req, res) => {
     const { id } = req.params;
     
-    db.prepare('DELETE FROM early_departures WHERE id = ?').run(id);
-    
-    // 通知所有客戶端
-    broadcast({ type: 'early_departure_deleted', data: { id: id } });
-    
-    res.json({ success: true });
+    try {
+        await pool.query('DELETE FROM early_departures WHERE id = $1', [id]);
+        
+        // 通知所有客戶端
+        broadcast({ type: 'early_departure_deleted', data: { id: id } });
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('刪除早退記錄錯誤:', error);
+        res.json({ success: false, message: '系統錯誤' });
+    }
 });
 
 // 統計早退記錄
-app.get('/api/early-departures/stats', (req, res) => {
+app.get('/api/early-departures/stats', async (req, res) => {
     const { teacher_id, start_date, end_date } = req.query;
     
     let sql = 'SELECT COUNT(*) as count, status FROM early_departures WHERE 1=1';
     const params = [];
+    let paramIndex = 1;
     
     if (teacher_id) {
-        sql += ' AND teacher_id = ?';
+        sql += ` AND teacher_id = $${paramIndex}`;
         params.push(teacher_id);
+        paramIndex++;
     }
     
     if (start_date) {
-        sql += ' AND date >= ?';
+        sql += ` AND date >= $${paramIndex}`;
         params.push(start_date);
+        paramIndex++;
     }
     
     if (end_date) {
-        sql += ' AND date <= ?';
+        sql += ` AND date <= $${paramIndex}`;
         params.push(end_date);
+        paramIndex++;
     }
     
     sql += ' GROUP BY status';
     
-    const stats = db.prepare(sql).all(...params);
-    res.json(stats);
+    try {
+        const result = await pool.query(sql, params);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('統計早退記錄錯誤:', error);
+        res.json([]);
+    }
 });
 
 // ========================================
@@ -276,22 +297,32 @@ app.get('/api/early-departures/stats', (req, res) => {
 // ========================================
 
 // 獲取排課數據
-app.get('/api/schedules', (req, res) => {
-    const row = db.prepare('SELECT data FROM schedules ORDER BY id DESC LIMIT 1').get();
-    res.json(row ? JSON.parse(row.data) : {});
+app.get('/api/schedules', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT data FROM schedules ORDER BY id DESC LIMIT 1');
+        res.json(result.rows.length > 0 ? JSON.parse(result.rows[0].data) : {});
+    } catch (error) {
+        console.error('獲取排課數據錯誤:', error);
+        res.json({});
+    }
 });
 
 // 保存排課數據
-app.post('/api/schedules', (req, res) => {
+app.post('/api/schedules', async (req, res) => {
     const data = JSON.stringify(req.body);
     const updated_by = req.body.updated_by || null;
     
-    db.prepare('INSERT INTO schedules (data, updated_by) VALUES (?, ?)').run(data, updated_by);
-    
-    // 通知所有客戶端
-    broadcast({ type: 'schedules_updated' });
-    
-    res.json({ success: true });
+    try {
+        await pool.query('INSERT INTO schedules (data, updated_by) VALUES ($1, $2)', [data, updated_by]);
+        
+        // 通知所有客戶端
+        broadcast({ type: 'schedules_updated' });
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('保存排課數據錯誤:', error);
+        res.json({ success: false, message: '系統錯誤' });
+    }
 });
 
 // ========================================
@@ -321,17 +352,20 @@ wss.on('connection', (ws) => {
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
-    console.log('=================================');
-    console.log('🚀 智能排課系統服務器已啟動！');
-    console.log('=================================');
-    console.log(`📍 本地訪問: http://localhost:${PORT}`);
-    console.log(`📍 局域網訪問: http://<你的IP>:${PORT}`);
-    console.log('');
-    console.log('👤 默認管理員賬號:');
-    console.log('   電郵: admin@school.edu.hk');
-    console.log('   密碼: admin123');
-    console.log('');
-    console.log('💡 提示: 按 Ctrl+C 停止服務器');
-    console.log('=================================');
+// 初始化數據庫後啟動服務器
+initDatabase().then(() => {
+    server.listen(PORT, () => {
+        console.log('=================================');
+        console.log('🚀 智能排課系統服務器已啟動！');
+        console.log('=================================');
+        console.log(`📍 本地訪問: http://localhost:${PORT}`);
+        console.log(`📍 局域網訪問: http://<你的IP>:${PORT}`);
+        console.log('');
+        console.log('👤 默認管理員賬號:');
+        console.log('   電郵: admin@school.edu.hk');
+        console.log('   密碼: admin123');
+        console.log('');
+        console.log('💡 提示: 按 Ctrl+C 停止服務器');
+        console.log('=================================');
+    });
 });

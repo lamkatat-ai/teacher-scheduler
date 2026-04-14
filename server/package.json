@@ -1,17 +1,17 @@
 {
   "name": "teacher-scheduler-server",
-  "version": "1.0.0",
-  "description": "智能排課系統後端服務器",
+  "version": "2.0.0",
+  "description": "智能排課系統後端服務器 (PostgreSQL)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.8.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "express": "^4.22.1",
+    "pg": "^8.11.3",
     "ws": "^8.14.2"
   },
   "keywords": [
