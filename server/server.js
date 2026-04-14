@@ -26,12 +26,55 @@ app.use(express.static(path.join(__dirname, '../webapp')));
 // 數據庫初始化
 const db = new Database(path.join(__dirname, 'scheduler.db'));
 
+// 數據庫遷移：處理舊的 username 欄位遷移到 email
+function migrateDatabase() {
+    try {
+        // 檢查 users 表結構
+        const tableInfo = db.prepare("PRAGMA table_info(users)").all();
+        const hasUsername = tableInfo.some(col => col.name === 'username');
+        const hasEmail = tableInfo.some(col => col.name === 'email');
+        
+        if (hasUsername && !hasEmail) {
+            console.log('🔄 正在進行數據庫遷移：username -> email...');
+            
+            // 創建新表
+            db.exec(`
+                CREATE TABLE users_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'teacher',
+                    department TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            
+            // 遷移數據
+            db.prepare(`
+                INSERT INTO users_new (id, email, password, name, role, department, created_at)
+                SELECT id, username, password, name, role, department, created_at FROM users
+            `).run();
+            
+            // 刪除舊表
+            db.prepare("DROP TABLE users").run();
+            
+            // 重命名新表
+            db.prepare("ALTER TABLE users_new RENAME TO users").run();
+            
+            console.log('✅ 數據庫遷移完成');
+        }
+    } catch (error) {
+        console.log('ℹ️ 數據庫遷移檢查：', error.message);
+    }
+}
+
 // 創建表
 db.exec(`
     -- 用戶表
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         name TEXT NOT NULL,
         role TEXT NOT NULL DEFAULT 'teacher',
@@ -80,13 +123,16 @@ db.exec(`
     );
 `);
 
+// 執行數據庫遷移
+migrateDatabase();
+
 // 插入默認管理員賬號
-const adminExists = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+const adminExists = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@school.edu.hk');
 if (!adminExists) {
-    db.prepare('INSERT INTO users (username, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
-        'admin', 'admin123', '系統管理員', 'admin', '系統'
+    db.prepare('INSERT INTO users (email, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
+        'admin@school.edu.hk', 'admin123', '系統管理員', 'admin', '系統'
     );
-    console.log('✅ 默認管理員賬號已創建 (admin/admin123)');
+    console.log('✅ 默認管理員賬號已創建 (admin@school.edu.hk / admin123)');
 }
 
 // ========================================
@@ -95,34 +141,34 @@ if (!adminExists) {
 
 // 用戶登錄
 app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
     
-    const user = db.prepare('SELECT id, username, name, role, department FROM users WHERE username = ? AND password = ?').get(username, password);
+    const user = db.prepare('SELECT id, email, name, role, department FROM users WHERE email = ? AND password = ?').get(email, password);
     
     if (user) {
         res.json({ success: true, user: user });
     } else {
-        res.json({ success: false, message: '用戶名或密碼錯誤' });
+        res.json({ success: false, message: '電郵或密碼錯誤' });
     }
 });
 
 // 獲取所有用戶
 app.get('/api/users', (req, res) => {
-    const users = db.prepare('SELECT id, username, name, role, department FROM users').all();
+    const users = db.prepare('SELECT id, email, name, role, department FROM users').all();
     res.json(users);
 });
 
 // 新增用戶
 app.post('/api/users', (req, res) => {
-    const { username, password, name, role, department } = req.body;
+    const { email, password, name, role, department } = req.body;
     
     try {
-        const result = db.prepare('INSERT INTO users (username, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
-            username, password, name, role, department
+        const result = db.prepare('INSERT INTO users (email, password, name, role, department) VALUES (?, ?, ?, ?, ?)').run(
+            email, password, name, role, department
         );
         res.json({ success: true, id: result.lastInsertRowid });
     } catch (error) {
-        res.json({ success: false, message: '用戶名已存在' });
+        res.json({ success: false, message: '電郵已存在' });
     }
 });
 
@@ -283,7 +329,7 @@ server.listen(PORT, () => {
     console.log(`📍 局域網訪問: http://<你的IP>:${PORT}`);
     console.log('');
     console.log('👤 默認管理員賬號:');
-    console.log('   用戶名: admin');
+    console.log('   電郵: admin@school.edu.hk');
     console.log('   密碼: admin123');
     console.log('');
     console.log('💡 提示: 按 Ctrl+C 停止服務器');

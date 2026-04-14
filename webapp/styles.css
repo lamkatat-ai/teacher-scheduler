@@ -804,3 +804,86 @@ body {
     font-size: 0.8rem;
     font-weight: 500;
 }
+
+/* ========================================
+   儲存按鈕樣式
+   ======================================== */
+
+/* 儲存按鈕 */
+#saveScheduleBtn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border: none;
+    color: white;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+#saveScheduleBtn:hover {
+    background: linear-gradient(135deg, #218838, #1e9c7a);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+#saveScheduleBtn:active {
+    transform: translateY(0);
+}
+
+#saveScheduleBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 未保存狀態 - 閃爍效果 */
+#saveScheduleBtn.unsaved {
+    animation: pulse-save 1.5s ease-in-out infinite;
+    background: linear-gradient(135deg, #ffc107, #ff9800);
+}
+
+#saveScheduleBtn.unsaved:hover {
+    background: linear-gradient(135deg, #e0a800, #f57c00);
+}
+
+@keyframes pulse-save {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+    }
+}
+
+/* 儲存狀態文字 */
+.save-status {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+.save-status.unsaved {
+    color: #ff9800;
+    font-weight: 600;
+}
+
+/* 按鈕圖標動畫 */
+#saveScheduleBtn i {
+    transition: var(--transition);
+}
+
+#saveScheduleBtn:hover i {
+    transform: scale(1.1);
+}
+
+/* 儲存中旋轉動畫 */
+.fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

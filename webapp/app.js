@@ -6,6 +6,10 @@
 // ========================================
 // 全域狀態
 // ========================================
+let isLoggedIn = false;
+let autoSaveTimer = null;
+let lastSavedData = null;
+
 const AppState = {
     teachers: [],
     classes: [],
@@ -14,8 +18,8 @@ const AppState = {
     departmentMeetings: {},
     customMeetings: [],
     teacherMeetings: {},
-    earlyDepartures: [],
     currentUser: null,
+    isDirty: false,  // 追蹤是否有未保存的變更
     settings: {
         periodsPerDay: 9,
         daysPerWeek: 5,
@@ -165,15 +169,191 @@ function getClassInfo(classId) {
 // 初始化
 // ========================================
 function initializeApp() {
-    loadData();
+    // 檢查是否已登入
+    const savedLogin = sessionStorage.getItem('scheduler_logged_in');
+    if (savedLogin === 'true') {
+        isLoggedIn = true;
+        loadData();
+        setupEventListeners();
+        renderAll();
+        updateSaveButtonState();
+        setupAutoSave();
+        updateHeaderForLoggedIn();
+        document.body.style.display = '';
+    } else {
+        // 顯示登入畫面
+        document.body.style.display = 'none';
+        showLoginModal();
+        setupEventListeners();
+    }
+}
+
+// 顯示登入 Modal
+function showLoginModal() {
+    document.body.style.display = '';
+    document.getElementById('loginModal').classList.add('active');
+}
+
+// 處理登入
+async function handleLogin(e) {
+    e.preventDefault();
     
-    if (AppState.subjects.length === 0) {
-        AppState.subjects = DEFAULT_SUBJECTS.map(function(s) { return Object.assign({}, s); });
-        saveData();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginError');
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            isLoggedIn = true;
+            AppState.currentUser = result.user;
+            sessionStorage.setItem('scheduler_logged_in', 'true');
+            sessionStorage.setItem('scheduler_user', JSON.stringify(result.user));
+            
+            document.getElementById('loginModal').classList.remove('active');
+            errorEl.style.display = 'none';
+            
+            loadData();
+            setupEventListeners();
+            renderAll();
+            updateSaveButtonState();
+            setupAutoSave();
+            updateHeaderForLoggedIn();
+            
+            showToast('歡迎 ' + result.user.name + '！', 'success');
+        } else {
+            errorEl.textContent = result.message || '電郵或密碼錯誤';
+            errorEl.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        errorEl.textContent = '連接伺服器失敗，請稍後再試';
+        errorEl.style.display = 'block';
+    }
+}
+
+// 登出
+function logout() {
+    if (!confirm('確定要登出嗎？')) return;
+    
+    isLoggedIn = false;
+    sessionStorage.removeItem('scheduler_logged_in');
+    sessionStorage.removeItem('scheduler_user');
+    
+    // 停止自動儲存
+    if (autoSaveTimer) {
+        clearInterval(autoSaveTimer);
+        autoSaveTimer = null;
     }
     
-    setupEventListeners();
-    renderAll();
+    // 重置 Header
+    const headerRight = document.querySelector('.header-right');
+    headerRight.innerHTML = `
+        <button class="btn btn-primary" onclick="showLoginModal()" style="margin-left:auto;">
+            <i class="fas fa-sign-in-alt"></i> 登入
+        </button>
+    `;
+    
+    // 顯示登入畫面
+    showLoginModal();
+}
+
+// 更新 Header（登入後）
+function updateHeaderForLoggedIn() {
+    const headerRight = document.querySelector('.header-right');
+    if (!headerRight) return;
+    
+    headerRight.innerHTML = `
+        <span style="color:var(--gray-600);font-size:0.9rem;margin-right:1rem;">
+            <i class="fas fa-user"></i> ${AppState.currentUser?.name || '用戶'}
+        </span>
+        <button class="btn btn-outline" id="exportCSVBtn" title="導出 CSV">
+            <i class="fas fa-file-csv"></i> CSV
+        </button>
+        <button class="btn btn-outline" id="printBtn" title="打印">
+            <i class="fas fa-print"></i> 列印
+        </button>
+        <button class="btn btn-danger" id="clearDataBtn" title="清除所有數據">
+            <i class="fas fa-trash"></i> 清除數據
+        </button>
+        <button class="btn btn-success" id="saveScheduleBtn" title="儲存排課">
+            <i class="fas fa-save"></i> 儲存
+        </button>
+        <div id="saveStatus" class="save-status"></div>
+        <button class="btn btn-secondary" id="logoutBtn" title="登出" onclick="logout()">
+            <i class="fas fa-sign-out-alt"></i> 登出
+        </button>
+    `;
+    
+    // 重新綁定事件
+    document.getElementById('exportCSVBtn').addEventListener('click', exportToCSV);
+    document.getElementById('printBtn').addEventListener('click', printSchedule);
+    document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
+    document.getElementById('saveScheduleBtn').addEventListener('click', saveScheduleToServer);
+}
+
+// ========================================
+// 自動儲存
+// ========================================
+function setupAutoSave() {
+    // 保存當前數據快照
+    lastSavedData = getCurrentDataSnapshot();
+    
+    // 每 30 秒自動檢測變更並儲存
+    autoSaveTimer = setInterval(function() {
+        if (!isLoggedIn) return;
+        
+        const currentData = getCurrentDataSnapshot();
+        
+        if (JSON.stringify(currentData) !== JSON.stringify(lastSavedData)) {
+            // 數據有變更，自動儲存
+            saveScheduleToServerSilent();
+            lastSavedData = currentData;
+            console.log('✅ 自動儲存已觸發');
+        }
+    }, 30000); // 30 秒檢查一次
+}
+
+function getCurrentDataSnapshot() {
+    return {
+        teachers: AppState.teachers.length,
+        classes: AppState.classes.length,
+        subjects: AppState.subjects.length,
+        schedules: AppState.schedules.length,
+        departmentMeetings: AppState.departmentMeetings,
+        customMeetings: AppState.customMeetings,
+        settings: AppState.settings
+    };
+}
+
+// 靜默自動儲存（不顯示提示）
+async function saveScheduleToServerSilent() {
+    try {
+        await fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                schedules: AppState.schedules,
+                teachers: AppState.teachers,
+                classes: AppState.classes,
+                subjects: AppState.subjects,
+                departmentMeetings: AppState.departmentMeetings,
+                customMeetings: AppState.customMeetings,
+                settings: AppState.settings,
+                updated_by: AppState.currentUser ? AppState.currentUser.id : null
+            })
+        });
+        markClean();
+    } catch (error) {
+        console.error('Auto-save failed:', error);
+    }
 }
 
 function loadData() {
@@ -183,7 +363,6 @@ function loadData() {
     AppState.schedules = Storage.load('schedules', []);
     AppState.departmentMeetings = Storage.load('departmentMeetings', {});
     AppState.customMeetings = Storage.load('customMeetings', []);
-    AppState.earlyDepartures = Storage.load('earlyDepartures', []);
     AppState.settings = Storage.load('settings', AppState.settings);
 }
 
@@ -194,15 +373,118 @@ function saveData() {
     Storage.save('schedules', AppState.schedules);
     Storage.save('departmentMeetings', AppState.departmentMeetings);
     Storage.save('customMeetings', AppState.customMeetings);
-    Storage.save('earlyDepartures', AppState.earlyDepartures);
     Storage.save('settings', AppState.settings);
 }
+
+// 標記數據為已修改（dirty）
+function markDirty() {
+    AppState.isDirty = true;
+    updateSaveButtonState();
+}
+
+// 標記數據為已保存
+function markClean() {
+    AppState.isDirty = false;
+    updateSaveButtonState();
+}
+
+// 更新儲存按鈕狀態
+function updateSaveButtonState() {
+    const saveBtn = document.getElementById('saveScheduleBtn');
+    const saveStatus = document.getElementById('saveStatus');
+    
+    if (saveBtn) {
+        if (AppState.isDirty) {
+            saveBtn.classList.add('unsaved');
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> 儲存*';
+        } else {
+            saveBtn.classList.remove('unsaved');
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> 儲存';
+        }
+    }
+    
+    if (saveStatus) {
+        if (AppState.isDirty) {
+            saveStatus.textContent = '有未保存的變更';
+            saveStatus.classList.add('unsaved');
+        } else {
+            saveStatus.textContent = '';
+            saveStatus.classList.remove('unsaved');
+        }
+    }
+}
+
+// 儲存排課數據到伺服器
+async function saveScheduleToServer() {
+    const saveBtn = document.getElementById('saveScheduleBtn');
+    const originalText = saveBtn.innerHTML;
+    
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 儲存中...';
+    saveBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/schedules', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                schedules: AppState.schedules,
+                teachers: AppState.teachers,
+                classes: AppState.classes,
+                subjects: AppState.subjects,
+                departmentMeetings: AppState.departmentMeetings,
+                customMeetings: AppState.customMeetings,
+                settings: AppState.settings,
+                updated_by: AppState.currentUser ? AppState.currentUser.id : null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            markClean();
+            saveBtn.innerHTML = '<i class="fas fa-check"></i> 已儲存';
+            showToast('✅ 數據已儲存到伺服器', 'success');
+            
+            setTimeout(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+                updateSaveButtonState();
+            }, 2000);
+        } else {
+            throw new Error('儲存失敗');
+        }
+    } catch (error) {
+        console.error('儲存失敗:', error);
+        saveBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 儲存失敗';
+        showToast('❌ 儲存失敗，請重試', 'error');
+        
+        setTimeout(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+            updateSaveButtonState();
+        }, 2000);
+    }
+}
+
+// 頁面關閉前檢查未保存變更
+window.addEventListener('beforeunload', function(e) {
+    if (AppState.isDirty) {
+        e.preventDefault();
+        e.returnValue = '你有未保存的變更，確定要離開嗎？';
+        return '你有未保存的變更，確定要離開嗎？';
+    }
+});
 
 // ========================================
 // 事件監聽
 // ========================================
 function setupEventListeners() {
     var self = this;
+    
+    // 登入表單
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
     
     // Tab 導航
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
@@ -239,24 +521,31 @@ function setupEventListeners() {
     document.getElementById('periodsPerDay').addEventListener('change', function(e) {
         AppState.settings.periodsPerDay = parseInt(e.target.value);
         saveData();
+        markDirty();
     });
     document.getElementById('daysPerWeek').addEventListener('change', function(e) {
         AppState.settings.daysPerWeek = parseInt(e.target.value);
         saveData();
+        markDirty();
     });
     document.getElementById('priorityStrategy').addEventListener('change', function(e) {
         AppState.settings.priorityStrategy = e.target.value;
         saveData();
+        markDirty();
     });
     document.getElementById('maxAttempts').addEventListener('change', function(e) {
         AppState.settings.maxAttempts = parseInt(e.target.value);
         saveData();
+        markDirty();
     });
     
     // 導出功能
     document.getElementById('exportCSVBtn').addEventListener('click', exportToCSV);
     document.getElementById('printBtn').addEventListener('click', printSchedule);
     document.getElementById('clearDataBtn').addEventListener('click', clearAllData);
+    
+    // 儲存按鈕
+    document.getElementById('saveScheduleBtn').addEventListener('click', saveScheduleToServer);
     
     // 查看課表
     document.querySelectorAll('.toggle-btn').forEach(function(btn) {
@@ -272,10 +561,6 @@ function setupEventListeners() {
     
     // 班級需求設置
     document.getElementById('saveRequirementsBtn').addEventListener('click', saveClassRequirements);
-    
-    // 早退記錄
-    document.getElementById('addEarlyDepartureBtn').addEventListener('click', openEarlyDepartureModal);
-    document.getElementById('saveEarlyDepartureBtn').addEventListener('click', saveEarlyDeparture);
     
     // Modal 關閉
     document.querySelectorAll('.modal-close, .modal-cancel, .modal-overlay').forEach(function(el) {
@@ -313,7 +598,6 @@ function renderAll() {
     renderClasses();
     renderSubjects();
     renderMeetings();
-    renderEarlyDepartures();
     renderScheduleSettings();
 }
 
@@ -697,6 +981,7 @@ function saveTeacher() {
     }
     
     saveData();
+    markDirty();
     closeModals();
     renderAll();
     showToast(id ? '教師已更新' : '教師已添加', 'success');
@@ -708,6 +993,7 @@ function deleteTeacher(id) {
     if (!confirm('確定要刪除此教師嗎？')) return;
     AppState.teachers = AppState.teachers.filter(function(t) { return t.id !== id; });
     saveData();
+    markDirty();
     renderAll();
     showToast('教師已刪除', 'success');
 }
@@ -800,6 +1086,7 @@ function saveClass() {
     }
     
     saveData();
+    markDirty();
     closeModals();
     renderAll();
     showToast(id ? '班級已更新' : '班級已添加', 'success');
@@ -811,6 +1098,7 @@ function deleteClass(id) {
     if (!confirm('確定要刪除此班級嗎？')) return;
     AppState.classes = AppState.classes.filter(function(c) { return c.id !== id; });
     saveData();
+    markDirty();
     renderAll();
     showToast('班級已刪除', 'success');
 }
@@ -864,6 +1152,7 @@ function saveClassRequirements() {
     
     cls.requirements = requirements;
     saveData();
+    markDirty();
     closeModals();
     renderAll();
     showToast('科目需求已保存', 'success');
@@ -942,6 +1231,7 @@ function saveSubject() {
     }
     
     saveData();
+    markDirty();
     closeModals();
     renderAll();
     showToast(id ? '科目已更新' : '科目已添加', 'success');
@@ -953,6 +1243,7 @@ function deleteSubject(id) {
     if (!confirm('確定要刪除此科目嗎？')) return;
     AppState.subjects = AppState.subjects.filter(function(s) { return s.id !== id; });
     saveData();
+    markDirty();
     renderAll();
     showToast('科目已刪除', 'success');
 }
@@ -1136,6 +1427,7 @@ function saveMeetings() {
     }
     
     saveData();
+    markDirty();
     showToast('會議時間已保存', 'success');
 }
 
@@ -1289,6 +1581,7 @@ function saveCustomMeeting() {
     }
     
     saveData();
+    markDirty();
     closeCustomMeetingModal();
     renderMeetings();
 }
@@ -1303,6 +1596,7 @@ function deleteCustomMeeting(index) {
     if (AppState.customMeetings) {
         AppState.customMeetings.splice(index, 1);
         saveData();
+        markDirty();
         renderMeetings();
         showToast('會議已刪除', 'success');
     }
@@ -1618,6 +1912,7 @@ async function generateSchedule() {
     AppState.schedules = Object.values(classSchedules);
     AppState.teacherMeetings = teacherMeetings;
     saveData();
+    markDirty();  // 標記為有未保存變更
     
     progressFill.style.width = '100%';
     progressPercent.textContent = '100%';
@@ -1999,287 +2294,9 @@ function clearAllData() {
     AppState.schedules = [];
     
     saveData();
+    markDirty();
     renderAll();
     showToast('所有數據已清除', 'success');
-}
-
-// ========================================
-// 早退記錄管理
-// ========================================
-
-function renderEarlyDepartures() {
-    var tbody = document.getElementById('earlyDeparturesTableBody');
-    
-    // 更新統計
-    var pending = AppState.earlyDepartures.filter(function(r) { return r.status === 'pending'; }).length;
-    var approved = AppState.earlyDepartures.filter(function(r) { return r.status === 'approved'; }).length;
-    var rejected = AppState.earlyDepartures.filter(function(r) { return r.status === 'rejected'; }).length;
-    
-    document.getElementById('statPending').textContent = pending;
-    document.getElementById('statApproved').textContent = approved;
-    document.getElementById('statRejected').textContent = rejected;
-    document.getElementById('statTotalDepartures').textContent = AppState.earlyDepartures.length;
-    
-    // 更新教師篩選器
-    var teacherFilter = document.getElementById('earlyDepartureTeacherFilter');
-    var teacherOptions = '<option value="">所有教師</option>';
-    var uniqueTeachers = [...new Set(AppState.earlyDepartures.map(function(r) { return r.teacher_name; }))];
-    uniqueTeachers.forEach(function(name) {
-        teacherOptions += '<option value="' + name + '">' + name + '</option>';
-    });
-    teacherFilter.innerHTML = teacherOptions;
-    
-    if (AppState.earlyDepartures.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-table-text"><i class="fas fa-inbox"></i><p>暫無早退記錄</p></td></tr>';
-        return;
-    }
-    
-    // 排序（最新在前）
-    var records = AppState.earlyDepartures.slice().sort(function(a, b) {
-        return new Date(b.created_at) - new Date(a.created_at);
-    });
-    
-    var html = '';
-    records.forEach(function(record) {
-        var statusBadge = '';
-        if (record.status === 'pending') {
-            statusBadge = '<span class="status-badge pending"><i class="fas fa-clock"></i> 待審批</span>';
-        } else if (record.status === 'approved') {
-            statusBadge = '<span class="status-badge approved"><i class="fas fa-check-circle"></i> 已批准</span>';
-        } else {
-            statusBadge = '<span class="status-badge rejected"><i class="fas fa-times-circle"></i> 已拒絕</span>';
-        }
-        
-        var actions = '';
-        if (record.status === 'pending') {
-            actions = '<div class="table-actions">' +
-                '<button class="btn-icon edit" onclick="openApprovalModal(\'' + record.id + '\')" title="審批"><i class="fas fa-clipboard-check"></i></button>' +
-                '<button class="btn-icon delete" onclick="deleteEarlyDeparture(\'' + record.id + '\')" title="刪除"><i class="fas fa-trash"></i></button>' +
-                '</div>';
-        } else {
-            actions = '<div class="table-actions">' +
-                '<button class="btn-icon view" onclick="viewEarlyDeparture(\'' + record.id + '\')" title="查看詳情"><i class="fas fa-eye"></i></button>' +
-                '<button class="btn-icon delete" onclick="deleteEarlyDeparture(\'' + record.id + '\')" title="刪除"><i class="fas fa-trash"></i></button>' +
-                '</div>';
-        }
-        
-        html += '<tr>';
-        html += '<td><strong>' + record.teacher_name + '</strong></td>';
-        html += '<td>' + (record.department || '-') + '</td>';
-        html += '<td>' + record.date + '</td>';
-        html += '<td>' + record.time + '</td>';
-        html += '<td><span class="reason-badge">' + record.reason_type + '</span></td>';
-        html += '<td>' + (record.reason_detail || '-') + '</td>';
-        html += '<td>' + statusBadge + '</td>';
-        html += '<td>' + actions + '</td>';
-        html += '</tr>';
-    });
-    
-    tbody.innerHTML = html;
-}
-
-function openEarlyDepartureModal() {
-    var modal = document.getElementById('earlyDepartureModal');
-    var title = document.getElementById('earlyDepartureModalTitle');
-    
-    title.innerHTML = '<i class="fas fa-door-open"></i> 新增早退申請';
-    document.getElementById('earlyDepartureForm').reset();
-    document.getElementById('earlyDepartureId').value = '';
-    
-    // 填充教師列表
-    var teacherSelect = document.getElementById('departureTeacherName');
-    var teacherOptions = '<option value="">請選擇教師</option>';
-    AppState.teachers.forEach(function(teacher) {
-        teacherOptions += '<option value="' + teacher.name + '">' + teacher.name + '</option>';
-    });
-    teacherSelect.innerHTML = teacherOptions;
-    
-    // 設置默認日期為今天
-    document.getElementById('departureDate').value = new Date().toISOString().split('T')[0];
-    
-    modal.classList.add('active');
-}
-
-function saveEarlyDeparture() {
-    var id = document.getElementById('earlyDepartureId').value;
-    var teacher_name = document.getElementById('departureTeacherName').value;
-    var department = document.getElementById('departureDepartment').value;
-    var date = document.getElementById('departureDate').value;
-    var time = document.getElementById('departureTime').value;
-    var reason_type = document.getElementById('departureReasonType').value;
-    var reason_detail = document.getElementById('departureReasonDetail').value.trim();
-    
-    if (!teacher_name) { showToast('請選擇教師', 'error'); return; }
-    if (!department) { showToast('請選擇學部', 'error'); return; }
-    if (!date) { showToast('請選擇早退日期', 'error'); return; }
-    if (!time) { showToast('請選擇離開時間', 'error'); return; }
-    if (!reason_type) { showToast('請選擇早退原因', 'error'); return; }
-    
-    var record = {
-        id: id || 'ed_' + Date.now(),
-        teacher_id: AppState.teachers.find(function(t) { return t.name === teacher_name; })?.id || null,
-        teacher_name: teacher_name,
-        department: department,
-        date: date,
-        time: time,
-        reason_type: reason_type,
-        reason_detail: reason_detail,
-        status: 'pending',
-        created_at: new Date().toISOString()
-    };
-    
-    if (id) {
-        var index = AppState.earlyDepartures.findIndex(function(r) { return r.id === id; });
-        if (index !== -1) {
-            AppState.earlyDepartures[index] = record;
-        }
-    } else {
-        AppState.earlyDepartures.push(record);
-    }
-    
-    saveData();
-    closeModals();
-    renderEarlyDepartures();
-    showToast('早退申請已提交', 'success');
-}
-
-function openApprovalModal(recordId) {
-    var record = AppState.earlyDepartures.find(function(r) { return r.id === recordId; });
-    if (!record) return;
-    
-    var details = document.getElementById('approvalDetails');
-    details.innerHTML = 
-        '<div style="background:var(--gray-50);padding:1rem;border-radius:var(--radius-sm);">' +
-        '<p><strong>教師姓名：</strong>' + record.teacher_name + '</p>' +
-        '<p><strong>所屬學部：</strong>' + record.department + '</p>' +
-        '<p><strong>早退日期：</strong>' + record.date + '</p>' +
-        '<p><strong>離開時間：</strong>' + record.time + '</p>' +
-        '<p><strong>早退原因：</strong>' + record.reason_type + '</p>' +
-        '<p><strong>詳細說明：</strong>' + (record.reason_detail || '無') + '</p>' +
-        '<p><strong>申請時間：</strong>' + new Date(record.created_at).toLocaleString('zh-TW') + '</p>' +
-        '</div>';
-    
-    document.getElementById('approvalModal').classList.add('active');
-    document.getElementById('approvalModal').dataset.recordId = recordId;
-    document.getElementById('approvalComment').value = '';
-}
-
-function approveEarlyDeparture() {
-    var recordId = document.getElementById('approvalModal').dataset.recordId;
-    var comment = document.getElementById('approvalComment').value.trim();
-    
-    var record = AppState.earlyDepartures.find(function(r) { return r.id === recordId; });
-    if (!record) return;
-    
-    record.status = 'approved';
-    record.approved_at = new Date().toISOString();
-    record.approval_comment = comment;
-    record.approved_by = '主任';
-    
-    saveData();
-    closeModals();
-    renderEarlyDepartures();
-    showToast('早退申請已批准', 'success');
-}
-
-function rejectEarlyDeparture() {
-    var recordId = document.getElementById('approvalModal').dataset.recordId;
-    var comment = document.getElementById('approvalComment').value.trim();
-    
-    if (!comment) {
-        showToast('請填寫拒絕原因', 'error');
-        return;
-    }
-    
-    var record = AppState.earlyDepartures.find(function(r) { return r.id === recordId; });
-    if (!record) return;
-    
-    record.status = 'rejected';
-    record.approved_at = new Date().toISOString();
-    record.approval_comment = comment;
-    record.approved_by = '主任';
-    
-    saveData();
-    closeModals();
-    renderEarlyDepartures();
-    showToast('早退申請已拒絕', 'success');
-}
-
-function viewEarlyDeparture(recordId) {
-    var record = AppState.earlyDepartures.find(function(r) { return r.id === recordId; });
-    if (!record) return;
-    
-    var statusText = record.status === 'approved' ? '已批准' : record.status === 'rejected' ? '已拒絕' : '待審批';
-    
-    alert(
-        '教師姓名：' + record.teacher_name + '\n' +
-        '所屬學部：' + record.department + '\n' +
-        '早退日期：' + record.date + '\n' +
-        '離開時間：' + record.time + '\n' +
-        '早退原因：' + record.reason_type + '\n' +
-        '詳細說明：' + (record.reason_detail || '無') + '\n' +
-        '狀態：' + statusText + '\n' +
-        '審批意見：' + (record.approval_comment || '無') + '\n' +
-        '審批時間：' + (record.approved_at ? new Date(record.approved_at).toLocaleString('zh-TW') : '無')
-    );
-}
-
-function deleteEarlyDeparture(recordId) {
-    if (!confirm('確定要刪除此早退記錄嗎？')) return;
-    
-    AppState.earlyDepartures = AppState.earlyDepartures.filter(function(r) { return r.id !== recordId; });
-    saveData();
-    renderEarlyDepartures();
-    showToast('早退記錄已刪除', 'success');
-}
-
-function filterEarlyDepartures() {
-    var statusFilter = document.getElementById('earlyDepartureStatusFilter').value;
-    var teacherFilter = document.getElementById('earlyDepartureTeacherFilter').value;
-    var startDate = document.getElementById('earlyDepartureStartDate').value;
-    var endDate = document.getElementById('earlyDepartureEndDate').value;
-    
-    var filtered = AppState.earlyDepartures.filter(function(record) {
-        var match = true;
-        if (statusFilter && record.status !== statusFilter) match = false;
-        if (teacherFilter && record.teacher_name !== teacherFilter) match = false;
-        if (startDate && record.date < startDate) match = false;
-        if (endDate && record.date > endDate) match = false;
-        return match;
-    });
-    
-    var tbody = document.getElementById('earlyDeparturesTableBody');
-    
-    if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-table-text"><i class="fas fa-search"></i><p>沒有找到符合條件的記錄</p></td></tr>';
-        return;
-    }
-    
-    var html = '';
-    filtered.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); }).forEach(function(record) {
-        var statusBadge = record.status === 'pending' ? 
-            '<span class="status-badge pending"><i class="fas fa-clock"></i> 待審批</span>' :
-            record.status === 'approved' ? 
-            '<span class="status-badge approved"><i class="fas fa-check-circle"></i> 已批准</span>' :
-            '<span class="status-badge rejected"><i class="fas fa-times-circle"></i> 已拒絕</span>';
-        
-        var actions = record.status === 'pending' ?
-            '<button class="btn-icon edit" onclick="openApprovalModal(\'' + record.id + '\')" title="審批"><i class="fas fa-clipboard-check"></i></button>' :
-            '<button class="btn-icon view" onclick="viewEarlyDeparture(\'' + record.id + '\')" title="查看"><i class="fas fa-eye"></i></button>';
-        
-        html += '<tr>';
-        html += '<td><strong>' + record.teacher_name + '</strong></td>';
-        html += '<td>' + (record.department || '-') + '</td>';
-        html += '<td>' + record.date + '</td>';
-        html += '<td>' + record.time + '</td>';
-        html += '<td><span class="reason-badge">' + record.reason_type + '</span></td>';
-        html += '<td>' + (record.reason_detail || '-') + '</td>';
-        html += '<td>' + statusBadge + '</td>';
-        html += '<td><div class="table-actions">' + actions + '<button class="btn-icon delete" onclick="deleteEarlyDeparture(\'' + record.id + '\')"><i class="fas fa-trash"></i></button></div></td>';
-        html += '</tr>';
-    });
-    
-    tbody.innerHTML = html;
 }
 
 // ========================================

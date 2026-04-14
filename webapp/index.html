@@ -28,6 +28,10 @@
             <button class="btn btn-danger" id="clearDataBtn" title="清除所有數據">
                 <i class="fas fa-trash"></i> 清除數據
             </button>
+            <button class="btn btn-success" id="saveScheduleBtn" title="儲存排課">
+                <i class="fas fa-save"></i> 儲存
+            </button>
+            <div id="saveStatus" class="save-status"></div>
         </div>
     </header>
 
@@ -50,12 +54,6 @@
         </button>
         <button class="tab-btn" data-tab="schedule">
             <i class="fas fa-calendar-week"></i> 排課引擎
-        </button>
-        <button class="tab-btn" data-tab="early-departures">
-            <i class="fas fa-door-open"></i> 早退記錄
-        </button>
-        <button class="tab-btn" data-tab="leave-requests">
-            <i class="fas fa-calendar-minus"></i> 請假申請
         </button>
         <button class="tab-btn" data-tab="view">
             <i class="fas fa-table"></i> 課表查看
@@ -365,115 +363,6 @@
             </div>
         </section>
 
-        <!-- Early Departures Tab -->
-        <section class="tab-content" id="early-departures">
-            <div class="section-header">
-                <h2><i class="fas fa-door-open"></i> 早退記錄</h2>
-                <button class="btn btn-primary" id="addEarlyDepartureBtn">
-                    <i class="fas fa-plus"></i> 新增早退申請
-                </button>
-            </div>
-
-            <!-- 統計卡片 -->
-            <div class="stats-grid" style="margin-bottom:1.5rem;">
-                <div class="stat-card">
-                    <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="statPending">0</div>
-                        <div class="stat-label">待審批</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="statApproved">0</div>
-                        <div class="stat-label">已批准</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="statRejected">0</div>
-                        <div class="stat-label">已拒絕</div>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon blue"><i class="fas fa-list"></i></div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="statTotalDepartures">0</div>
-                        <div class="stat-label">總記錄數</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 篩選器 -->
-            <div class="card" style="margin-bottom:1rem;">
-                <div class="card-body">
-                    <div style="display:flex;gap:1rem;align-items:end;flex-wrap:wrap;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>狀態</label>
-                            <select id="earlyDepartureStatusFilter">
-                                <option value="">全部</option>
-                                <option value="pending">待審批</option>
-                                <option value="approved">已批准</option>
-                                <option value="rejected">已拒絕</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>教師</label>
-                            <select id="earlyDepartureTeacherFilter">
-                                <option value="">所有教師</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>開始日期</label>
-                            <input type="date" id="earlyDepartureStartDate">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>結束日期</label>
-                            <input type="date" id="earlyDepartureEndDate">
-                        </div>
-                        <button class="btn btn-secondary" onclick="filterEarlyDepartures()">
-                            <i class="fas fa-search"></i> 查詢
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 記錄列表 -->
-            <div class="card">
-                <div class="card-header">
-                    <h3>早退記錄列表</h3>
-                </div>
-                <div class="card-body">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>教師姓名</th>
-                                    <th>學部</th>
-                                    <th>早退日期</th>
-                                    <th>離開時間</th>
-                                    <th>早退原因</th>
-                                    <th>詳細說明</th>
-                                    <th>狀態</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="earlyDeparturesTableBody">
-                                <tr>
-                                    <td colspan="8" class="empty-table-text">
-                                        <i class="fas fa-inbox"></i>
-                                        <p>暫無早退記錄</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- View Tab -->
         <section class="tab-content" id="view">
             <div class="section-header">
@@ -725,110 +614,36 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Early Departure Modal -->
-    <div class="modal" id="earlyDepartureModal">
+    <!-- 登入 Modal -->
+    <div class="modal" id="loginModal">
         <div class="modal-overlay"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="earlyDepartureModalTitle"><i class="fas fa-door-open"></i> 新增早退申請</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="earlyDepartureForm">
-                    <input type="hidden" id="earlyDepartureId">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>教師姓名 <span class="required">*</span></label>
-                            <select id="departureTeacherName" required>
-                                <option value="">請選擇教師</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>所屬學部 <span class="required">*</span></label>
-                            <select id="departureDepartment" required>
-                                <option value="">請選擇學部</option>
-                                <option value="幼稚園">幼稚園</option>
-                                <option value="小學中文部">小學中文部</option>
-                                <option value="小學英文部">小學英文部</option>
-                                <option value="中學中文部">中學中文部</option>
-                                <option value="中學英文部">中學英文部</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>早退日期 <span class="required">*</span></label>
-                            <input type="date" id="departureDate" required>
-                        </div>
-                        <div class="form-group">
-                            <label>離開時間 <span class="required">*</span></label>
-                            <select id="departureTime" required>
-                                <option value="">請選擇</option>
-                                <option value="第1節後">第1節後</option>
-                                <option value="第2節後">第2節後</option>
-                                <option value="第3節後">第3節後</option>
-                                <option value="第4節後">第4節後</option>
-                                <option value="第5節後">第5節後</option>
-                                <option value="第6節後">第6節後</option>
-                                <option value="第7節後">第7節後</option>
-                                <option value="第8節後">第8節後</option>
-                                <option value="第9節後">第9節後</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>早退原因 <span class="required">*</span></label>
-                        <select id="departureReasonType" required>
-                            <option value="">請選擇</option>
-                            <option value="事務堂">事務堂</option>
-                            <option value="外出比賽">外出比賽</option>
-                            <option value="教務會議">教務會議</option>
-                            <option value="家校會議">家校會議</option>
-                            <option value="教師培訓">教師培訓</option>
-                            <option value="身體不適">身體不適</option>
-                            <option value="家庭事務">家庭事務</option>
-                            <option value="其他">其他</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>詳細說明</label>
-                        <textarea id="departureReasonDetail" rows="3" placeholder="請詳細說明早退原因..."></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary modal-cancel">取消</button>
-                <button class="btn btn-primary" id="saveEarlyDepartureBtn">
-                    <i class="fas fa-save"></i> 提交申請
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Approval Modal -->
-    <div class="modal" id="approvalModal">
-        <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:600px;">
-            <div class="modal-header">
-                <h3><i class="fas fa-clipboard-check"></i> 審批早退申請</h3>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="approvalDetails"></div>
-                <hr style="margin:1.5rem 0;">
-                <div class="form-group">
-                    <label>審批意見</label>
-                    <textarea id="approvalComment" rows="3" placeholder="請輸入審批意見（選填）"></textarea>
+        <div class="modal-content" style="max-width:420px;margin:auto;">
+            <div class="modal-header" style="text-align:center;border:none;padding-bottom:0;">
+                <div style="width:70px;height:70px;background:linear-gradient(135deg,#4361ee,#764ba2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;">
+                    <i class="fas fa-calendar-alt" style="font-size:2rem;color:white;"></i>
                 </div>
+                <h3 style="font-size:1.5rem;color:var(--dark);margin:0;">SmartScheduler</h3>
+                <p style="color:var(--gray-600);font-size:0.9rem;margin:0.5rem 0 0;">智能排課系統</p>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary modal-cancel">取消</button>
-                <button class="btn btn-success" id="approveBtn" onclick="approveEarlyDeparture()">
-                    <i class="fas fa-check"></i> 批准
-                </button>
-                <button class="btn btn-danger" id="rejectBtn" onclick="rejectEarlyDeparture()">
-                    <i class="fas fa-times"></i> 拒絕
-                </button>
+            <div class="modal-body" style="padding-top:1rem;">
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label style="font-weight:500;margin-bottom:0.5rem;display:block;">電郵</label>
+                        <input type="email" id="loginEmail" required placeholder="請輸入電郵" style="width:100%;padding:0.85rem 1rem;border:2px solid var(--gray-300);border-radius:var(--radius);font-size:1rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom:1.5rem;">
+                        <label style="font-weight:500;margin-bottom:0.5rem;display:block;">密碼</label>
+                        <input type="password" id="loginPassword" required placeholder="請輸入密碼" style="width:100%;padding:0.85rem 1rem;border:2px solid var(--gray-300);border-radius:var(--radius);font-size:1rem;">
+                    </div>
+                    <div id="loginError" style="color:var(--danger);font-size:0.875rem;margin-bottom:1rem;display:none;text-align:center;"></div>
+                    <button type="submit" style="width:100%;padding:0.85rem;background:linear-gradient(135deg,#4361ee,#764ba2);color:white;border:none;border-radius:var(--radius);font-size:1.05rem;font-weight:600;cursor:pointer;transition:all 0.3s;">
+                        <i class="fas fa-sign-in-alt"></i> 登入
+                    </button>
+                </form>
+                <div style="text-align:center;margin-top:1.5rem;color:var(--gray-500);font-size:0.85rem;">
+                    <p>預設帳號：admin@school.edu.hk</p>
+                    <p>預設密碼：admin123</p>
+                </div>
             </div>
         </div>
     </div>
